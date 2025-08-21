@@ -45,7 +45,7 @@ def _ensure_numeric(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     for c in cols:
         if c in out.columns:
             # pd.to_numeric has wide overloads; result is Series[float | complex | int | object]
-            out[c] = pd.to_numeric(out[c], errors="coerce")
+            out[c] = pd.to_numeric(out[c], errors="coerce")  # type: ignore[call-overload]
     return out
 
 
@@ -53,7 +53,7 @@ def get_prices(ticker: str, start:str) -> pd.DataFrame:
     """
     Download and clean daily OHLCV data.
     """
-    df: pd.DataFrame | None = yf.download(
+    df: pd.DataFrame | None = yf.download(  # type: ignore[call-arg]
         tickers=ticker,
         start=start,
         auto_adjust=False,  # we do this manually
@@ -261,7 +261,7 @@ base = HistGradientBoostingClassifier(
     random_state=RNG_SEED,
 )
 clf: CalibratedClassifierCV = CalibratedClassifierCV(base, method="sigmoid", cv=3)
-clf.fit(X_train, y_train)
+clf.fit(X_train, y_train)  # type: ignore[reportUnknownMemberType]
 
 # ----------------------------
 # 7) AUC-inversion safeguard + threshold tuning
@@ -340,14 +340,14 @@ if len(eq_curve) > 2:
 # ----------------------------
 # 9) Plot equity curves on TEST
 # ----------------------------
-fig: Figure = plt.figure(figsize=(9, 4.5))
-ax: Axes = fig.gca()
+fig: Figure = plt.figure(figsize=(9, 4.5))  # type: ignore[reportUnknownMemberType]
+ax: Axes = fig.gca()  # type: ignore[reportUnknownMemberType]
 pd.DataFrame({"eq_curve": eq_curve, "buy_hold": buy_hold}).dropna().plot(ax=ax)
-ax.set_title(f"Toy Strategy vs Buy & Hold (Test) — {TICKER} weekly, horizon={HORIZON_WEEKS}w")
-ax.set_xlabel("Date")
-ax.set_ylabel("Growth of $1")
+ax.set_title(f"Toy Strategy vs Buy & Hold (Test) — {TICKER} weekly, horizon={HORIZON_WEEKS}w")  # type: ignore[reportUnknownMemberType]
+ax.set_xlabel("Date")  # type: ignore[reportUnknownMemberType]
+ax.set_ylabel("Growth of $1")  # type: ignore[reportUnknownMemberType]
 fig.tight_layout()
-plt.show()
+plt.show()  # type: ignore[reportUnknownMemberType]
 
 # ----------------------------
 # 10) Optional: quick walk-forward AUC check
@@ -372,9 +372,9 @@ for tr_idx, va_idx in tscv.split(X_all):
         random_state=RNG_SEED,
     )
     cv_clf: CalibratedClassifierCV = CalibratedClassifierCV(base_cv, method="sigmoid", cv=3)
-    cv_clf.fit(X_tr, y_tr)
+    cv_clf.fit(X_tr, y_tr)  # type: ignore[reportUnknownMemberType]
 
-    p_raw: NDArray[np.float64] = cv_clf.predict_proba(X_va)[:, 1]
+    p_raw: NDArray[np.float64] = cv_clf.predict_proba(X_va)[:, 1]  # type: ignore[reportUnknownMemberType]
     try:
         auc_va = float(roc_auc_score(y_va, p_raw))
     except ValueError:
