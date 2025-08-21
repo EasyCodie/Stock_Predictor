@@ -48,14 +48,19 @@ def _ensure_numeric(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return out
 
 
-def get_prices(ticker: str, start: str) -> pd.DataFrame:
+def get_prices(ticker: str, start:str) -> pd.DataFrame:
+    """
+    Download and clean daily OHLCV data.
+    """
     raw: Any = yf.download(
-        ticker,
+        tickers=ticker,
         start=start,
-        auto_adjust=True,
+        auto_adjust=False,  # we do this manually
+        back_adjust=False,  # we do this manually
         progress=False,
         group_by="column",
         threads=False,
+        repair=True,
     )
     if raw is None:
         raise SystemExit(f"No data downloaded for {ticker}. Try different START or ticker.")
@@ -81,7 +86,15 @@ def get_prices(ticker: str, start: str) -> pd.DataFrame:
         raise SystemExit(f"{ticker}: missing {missing}. Raw columns: {list(df.columns)}")
 
     df = _ensure_datetime_index(df)
-    df = _ensure_numeric(df, ["Open", "High", "Low", "Close", "Volume"])
+    df = _ensure_numeric(df, ["Open", "High", "Low", "Close", "Volume", "Adj Close"])
+    if "Adj Close" in df.columns:
+        adj_factor = df["Adj Close"] / df["Close"]
+        df["Open"] = df["Open"] * adj_factor
+        df["High"] = df["High"] * adj_factor
+        df["Low"] = df["Low"] * adj_factor
+        df["Close"] = df["Adj Close"]
+        df = df.drop("Adj Close", axis=1)
+
     df = df.sort_index()
     return df
 
@@ -268,11 +281,16 @@ best_thr: float = 0.5
 best_score: float = -1e9
 actual_up_rate: float = float(y_val.mean())
 
-for thr in np.linspace(0.30, 0.70, 81):
+for thr in np.linspace(0.40, 0.60, 41):
     preds: NDArray[np.int_] = (val_proba >= thr).astype(np.int_)
     acc_val = float(accuracy_score(y_val, preds))
     pred_up_rate: float = float(preds.mean())
-    penalty: float = 0.02 if (pred_up_rate < 0.35 or pred_up_rate > 0.75) else 0.0
+    # Penalize if we are too far from 50% allocation, or if we have no trades
+    penalty: float = (
+        0.5 * abs(pred_up_rate - 0.5)
+        + 0.10 * float(pred_up_rate == 0.0)
+        + 0.10 * float(pred_up_rate == 1.0)
+    )
     score: float = acc_val - penalty
     if score > best_score:
         best_score = score
