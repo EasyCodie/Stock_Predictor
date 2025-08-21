@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import cast
 import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
