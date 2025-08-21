@@ -9,6 +9,8 @@ import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 import yfinance as yf  # type: ignore[reportMissingTypeStubs]
 
@@ -42,9 +44,8 @@ def _ensure_numeric(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     out = df.copy()
     for c in cols:
         if c in out.columns:
-            # pd.to_numeric has wide overloads; cast result back to Series[float]
-            ser = cast(pd.Series, pd.to_numeric(out[c], errors="coerce"))
-            out[c] = ser
+            # pd.to_numeric has wide overloads; result is Series[float | complex | int | object]
+            out[c] = pd.to_numeric(out[c], errors="coerce")
     return out
 
 
@@ -52,7 +53,7 @@ def get_prices(ticker: str, start:str) -> pd.DataFrame:
     """
     Download and clean daily OHLCV data.
     """
-    raw: Any = yf.download(
+    df: pd.DataFrame | None = yf.download(
         tickers=ticker,
         start=start,
         auto_adjust=False,  # we do this manually
@@ -62,10 +63,8 @@ def get_prices(ticker: str, start:str) -> pd.DataFrame:
         threads=False,
         repair=True,
     )
-    if raw is None:
+    if df is None:
         raise SystemExit(f"No data downloaded for {ticker}. Try different START or ticker.")
-
-    df = cast(pd.DataFrame, raw)
 
     # Flatten MultiIndex if present
     if isinstance(df.columns, pd.MultiIndex):
@@ -129,8 +128,7 @@ agg_map: dict[str, str] = {
     "SECTOR_Volume": "sum",
 }
 # Pandas typing for Resampler.agg is too loose; ignore call-overload here.
-wk_any: Any = df.resample(WEEKLY_RESAMPLE_RULE).agg(agg_map)  # type: ignore[call-overload]
-wk = cast(pd.DataFrame, wk_any).dropna(how="any")
+wk: pd.DataFrame = df.resample(WEEKLY_RESAMPLE_RULE).agg(agg_map).dropna(how="any")  # type: ignore[call-overload]
 wk = _ensure_numeric(
     wk,
     ["Open", "High", "Low", "Close", "Volume", "SPY_Close", "SPY_Volume", "SECTOR_Close", "SECTOR_Volume"],
@@ -138,8 +136,8 @@ wk = _ensure_numeric(
 df = wk
 
 # Print a typed sanity line
-first_idx = cast(pd.Timestamp, df.index.min())
-last_idx = cast(pd.Timestamp, df.index.max())
+first_idx: pd.Timestamp = df.index.min()
+last_idx: pd.Timestamp = df.index.max()
 print("Weekly rows:", int(len(df)), "| first:", str(first_idx), "| last:", str(last_idx))
 
 # Weekly returns
@@ -226,7 +224,7 @@ df["m_sin"] = np.sin(2.0 * np.pi * df["month"].to_numpy() / 12.0)
 df["m_cos"] = np.cos(2.0 * np.pi * df["month"].to_numpy() / 12.0)
 
 # Final cleanup
-df = cast(pd.DataFrame, df.dropna())
+df = df.dropna()
 
 # ----------------------------
 # 5) Train / Val / Test split
@@ -262,7 +260,7 @@ base = HistGradientBoostingClassifier(
     validation_fraction=0.15,
     random_state=RNG_SEED,
 )
-clf = CalibratedClassifierCV(base, method="sigmoid", cv=3)
+clf: CalibratedClassifierCV = CalibratedClassifierCV(base, method="sigmoid", cv=3)
 clf.fit(X_train, y_train)
 
 # ----------------------------
@@ -331,9 +329,9 @@ test_df["signal"] = (test_df["proba"].to_numpy() >= best_thr).astype(np.int_)
 
 # next period return aligned with today's signal
 test_df["next_ret"] = test_df["Close"].pct_change(periods=HORIZON_WEEKS).shift(-HORIZON_WEEKS)
-strategy_ret = (test_df["signal"].to_numpy() * test_df["next_ret"].to_numpy())
-eq_curve = (1.0 + pd.Series(strategy_ret, index=test_df.index).fillna(0.0)).cumprod()
-buy_hold = (1.0 + test_df["next_ret"].fillna(0.0)).cumprod()
+strategy_ret: NDArray[np.float64] = test_df["signal"].to_numpy() * test_df["next_ret"].to_numpy()
+eq_curve: pd.Series = (1.0 + pd.Series(strategy_ret, index=test_df.index).fillna(0.0)).cumprod()
+buy_hold: pd.Series = (1.0 + test_df["next_ret"].fillna(0.0)).cumprod()
 
 if len(eq_curve) > 2:
     print("\nFinal equity (strategy):", round(float(eq_curve.iloc[-2]), 3))
@@ -342,8 +340,8 @@ if len(eq_curve) > 2:
 # ----------------------------
 # 9) Plot equity curves on TEST
 # ----------------------------
-fig: plt.Figure = plt.figure(figsize=(9, 4.5))
-ax = cast(plt.Axes, plt.gca())
+fig: Figure = plt.figure(figsize=(9, 4.5))
+ax: Axes = fig.gca()
 pd.DataFrame({"eq_curve": eq_curve, "buy_hold": buy_hold}).dropna().plot(ax=ax)
 ax.set_title(f"Toy Strategy vs Buy & Hold (Test) — {TICKER} weekly, horizon={HORIZON_WEEKS}w")
 ax.set_xlabel("Date")
@@ -373,7 +371,7 @@ for tr_idx, va_idx in tscv.split(X_all):
         validation_fraction=0.15,
         random_state=RNG_SEED,
     )
-    cv_clf = CalibratedClassifierCV(base_cv, method="sigmoid", cv=3)
+    cv_clf: CalibratedClassifierCV = CalibratedClassifierCV(base_cv, method="sigmoid", cv=3)
     cv_clf.fit(X_tr, y_tr)
 
     p_raw: NDArray[np.float64] = cv_clf.predict_proba(X_va)[:, 1]
