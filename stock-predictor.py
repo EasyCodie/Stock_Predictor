@@ -138,7 +138,7 @@ df = wk
 # Print a typed sanity line
 first_idx: pd.Timestamp = df.index.min()  # type: ignore[assignment]
 last_idx: pd.Timestamp = df.index.max()  # type: ignore[assignment]
-print("Weekly rows:", int(len(df)), "| first:", str(first_idx), "| last:", str(last_idx))
+print("Weekly rows:", int(len(df)), "| first:", str(first_idx), "| last:", str(last_idx)) # type: ignore[reportUnknownMemberType]
 
 # Weekly returns
 df["ret_1w"] = df["Close"].pct_change()
@@ -342,7 +342,7 @@ if len(eq_curve) > 2:
 # ----------------------------
 fig: Figure = plt.figure(figsize=(9, 4.5))  # type: ignore[reportUnknownMemberType]
 ax: Axes = fig.gca()  # type: ignore[reportUnknownMemberType]
-pd.DataFrame({"eq_curve": eq_curve, "buy_hold": buy_hold}).dropna().plot(ax=ax)
+pd.DataFrame({"eq_curve": eq_curve, "buy_hold": buy_hold}).dropna().plot(ax=ax) # type: ignore[reportUnknownMemberType]
 ax.set_title(f"Toy Strategy vs Buy & Hold (Test) — {TICKER} weekly, horizon={HORIZON_WEEKS}w")  # type: ignore[reportUnknownMemberType]
 ax.set_xlabel("Date")  # type: ignore[reportUnknownMemberType]
 ax.set_ylabel("Growth of $1")  # type: ignore[reportUnknownMemberType]
