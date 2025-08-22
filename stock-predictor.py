@@ -13,11 +13,13 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 import yfinance as yf  # type: ignore[reportMissingTypeStubs]
+import pandas_ta as ta
 
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
+from sklearn.preprocessing import StandardScaler
 
 
 # ----------------------------
@@ -94,6 +96,11 @@ def get_prices(ticker: str, start:str) -> pd.DataFrame:
         df["Close"] = df["Adj Close"]
         df = df.drop("Adj Close", axis=1)
 
+    # Clean data
+    df.drop_duplicates(inplace=True)
+    df.ffill(inplace=True)
+    df.dropna(inplace=True)  # Drop any remaining NaNs
+
     df = df.sort_index()
     return df
 
@@ -153,23 +160,24 @@ df["target"] = (df["Close"].shift(-HORIZON_WEEKS) > df["Close"]).astype("int8")
 # ----------------------------
 # 4) Feature engineering (weekly)
 # ----------------------------
+# Pandas-TA indicators
+df.ta.rsi(length=14, append=True)
+df.ta.macd(append=True)
+df.ta.bbands(append=True)
+df.ta.obv(append=True)
+
 # Momentum / lagged returns
 for lag in [1, 2, 3, 4, 8, 12, 26, 52]:
     df[f"ret_lag_{lag}w"] = df["ret_1w"].shift(lag)
 
 # MA distance
-for w in [4, 8, 12, 26, 52]:
+for w in [5, 10, 20, 26, 52]:
     ma = df["Close"].rolling(w).mean()
     df[f"dist_ma_{w}w"] = (df["Close"] - ma) / (ma + 1e-12)
 
 # Volatility
-for w in [4, 12, 26]:
+for w in [4, 12, 26, 52]:
     df[f"vol_{w}w"] = df["ret_1w"].rolling(w).std()
-
-# Bollinger percent-B (20w)
-mid = df["Close"].rolling(20).mean()
-std = df["Close"].rolling(20).std()
-df["pctB_20w"] = (df["Close"] - mid) / (2.0 * std + 1e-12)
 
 # ATR(14w)
 tr_comp = pd.concat(
@@ -241,12 +249,17 @@ EXCLUDE: set[str] = {
 }
 features: list[str] = [c for c in df.columns if c not in EXCLUDE]
 
-X_train: NDArray[np.float64] = df.iloc[:train_end][features].to_numpy(dtype=np.float64)
+X_train_raw: NDArray[np.float64] = df.iloc[:train_end][features].to_numpy(dtype=np.float64)
 y_train: NDArray[np.int_] = df.iloc[:train_end]["target"].to_numpy(dtype=np.int_)
-X_val: NDArray[np.float64] = df.iloc[train_end:val_end][features].to_numpy(dtype=np.float64)
+X_val_raw: NDArray[np.float64] = df.iloc[train_end:val_end][features].to_numpy(dtype=np.float64)
 y_val: NDArray[np.int_] = df.iloc[train_end:val_end]["target"].to_numpy(dtype=np.int_)
-X_test: NDArray[np.float64] = df.iloc[val_end:][features].to_numpy(dtype=np.float64)
+X_test_raw: NDArray[np.float64] = df.iloc[val_end:][features].to_numpy(dtype=np.float64)
 y_test: NDArray[np.int_] = df.iloc[val_end:]["target"].to_numpy(dtype=np.int_)
+
+scaler = StandardScaler()
+X_train: NDArray[np.float64] = scaler.fit_transform(X_train_raw)
+X_val: NDArray[np.float64] = scaler.transform(X_val_raw)
+X_test: NDArray[np.float64] = scaler.transform(X_test_raw)
 
 # ----------------------------
 # 6) Model: Gradient Boosting + Calibration
