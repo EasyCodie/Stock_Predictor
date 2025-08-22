@@ -128,7 +128,7 @@ agg_map: dict[str, str] = {
     "SECTOR_Volume": "sum",
 }
 # Pandas typing for Resampler.agg is too loose; ignore call-overload here.
-wk: pd.DataFrame = df.resample(WEEKLY_RESAMPLE_RULE).agg(agg_map).dropna(how="any")  # type: ignore[call-overload]
+wk: pd.DataFrame = df.resample(WEEKLY_RESAMPLE_RULE).agg(agg_map).dropna(how="any")  # type: ignore[call-overload, reportUnknownMemberType]
 wk = _ensure_numeric(
     wk,
     ["Open", "High", "Low", "Close", "Volume", "SPY_Close", "SPY_Volume", "SECTOR_Close", "SECTOR_Volume"],
@@ -136,8 +136,8 @@ wk = _ensure_numeric(
 df = wk
 
 # Print a typed sanity line
-first_idx: pd.Timestamp = df.index.min()
-last_idx: pd.Timestamp = df.index.max()
+first_idx: pd.Timestamp = df.index.min()  # type: ignore[assignment]
+last_idx: pd.Timestamp = df.index.max()  # type: ignore[assignment]
 print("Weekly rows:", int(len(df)), "| first:", str(first_idx), "| last:", str(last_idx))
 
 # Weekly returns
@@ -224,7 +224,7 @@ df["m_sin"] = np.sin(2.0 * np.pi * df["month"].to_numpy() / 12.0)
 df["m_cos"] = np.cos(2.0 * np.pi * df["month"].to_numpy() / 12.0)
 
 # Final cleanup
-df = df.dropna()
+df = df.dropna()  # type: ignore[reportUnknownMemberType]
 
 # ----------------------------
 # 5) Train / Val / Test split
@@ -330,8 +330,8 @@ test_df["signal"] = (test_df["proba"].to_numpy() >= best_thr).astype(np.int_)
 # next period return aligned with today's signal
 test_df["next_ret"] = test_df["Close"].pct_change(periods=HORIZON_WEEKS).shift(-HORIZON_WEEKS)
 strategy_ret: NDArray[np.float64] = test_df["signal"].to_numpy() * test_df["next_ret"].to_numpy()
-eq_curve: pd.Series = (1.0 + pd.Series(strategy_ret, index=test_df.index).fillna(0.0)).cumprod()
-buy_hold: pd.Series = (1.0 + test_df["next_ret"].fillna(0.0)).cumprod()
+eq_curve: pd.Series = (1.0 + pd.Series(strategy_ret, index=test_df.index).fillna(0.0)).cumprod()  # type: ignore[reportUnknownMemberType]
+buy_hold: pd.Series = (1.0 + test_df["next_ret"].fillna(0.0)).cumprod()  # type: ignore[reportUnknownMemberType]
 
 if len(eq_curve) > 2:
     print("\nFinal equity (strategy):", round(float(eq_curve.iloc[-2]), 3))
